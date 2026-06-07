@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  VOLUNTEER
+  ADMIN
+}
+
+enum VolunteerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+}
+
+enum SupportCategory {
+  ANXIETY
+  SADNESS
+  LONELINESS
+  ANGER
+  GRIEF
+  OVERWHELMED
+  JUST_TALK
+  OTHER
+}
+
+enum Urgency {
+  LOW
+  MEDIUM
+  HIGH
+  EMERGENCY
+}
+
+enum SupportStatus {
+  WAITING
+  ACTIVE
+  CLOSED
+  CANCELLED
+  ESCALATED
+}
+
+enum ConversationStatus {
+  WAITING
+  ACTIVE
+  CLOSED
+  REPORTED
+  ESCALATED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  SAFETY
+}
+
+enum ReportReason {
+  ABUSE
+  HARASSMENT
+  UNSAFE_ADVICE
+  SPAM
+  PERSONAL_DATA_REQUEST
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum SafetyEventType {
+  EMERGENCY_TRIAGE
+  SELF_HARM_RISK
+  VIOLENCE_RISK
+  ABUSE_RISK
+  ADMIN_ESCALATION
+}
+
+enum ConsentType {
+  TERMS
+  PRIVACY
+  VOLUNTEER_TERMS
+  SAFETY_NOTICE
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  name               String
+  email              String             @unique
+  passwordHash       String
+  role               Role               @default(USER)
+  displayName        String?
+  isAnonymousMode    Boolean            @default(false)
+  isActive           Boolean            @default(true)
+  acceptedTermsAt    DateTime?
+  acceptedPrivacyAt  DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  volunteerProfile   VolunteerProfile?
+  emotionalCheckins  EmotionalCheckin[]
+  supportRequests    SupportRequest[]
+  conversationsAsUser      Conversation[] @relation("ConversationUser")
+  conversationsAsVolunteer Conversation[] @relation("ConversationVolunteer")
+  messages           Message[]
+  reports            Report[]           @relation("ReportedBy")
+  safetyEvents       SafetyEvent[]
+  consentLogs        ConsentLog[]
+}
+
+model VolunteerProfile {
+  id                        String             @id @default(uuid())
+  userId                    String             @unique
+  user                      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status                    VolunteerStatus    @default(PENDING)
+  motivation                String
+  experience                String?
+  availability              String?
+  trainingCompleted         Boolean            @default(false)
+  trainingCompletedAt       DateTime?
+  approvedAt                DateTime?
+  rejectedReason            String?
+  blockedReason             String?
+  acceptedVolunteerTermAt   DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  trainingProgress          TrainingProgress[]
+}
+
+model EmotionalCheckin {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood              Int
+  anxiety           Int
+  loneliness        Int
+  sadness           Int
+  stress            Int
+  note              String?
+  wantsHumanSupport Boolean  @default(false)
+  createdAt         DateTime @default(now())
+}
+
+model SupportRequest {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category       SupportCategory
+  urgency        Urgency
+  status         SupportStatus @default(WAITING)
+  initialMessage String?
+  isEmergency    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  closedAt       DateTime?
+  conversation   Conversation?
+  safetyEvents   SafetyEvent[]
+}
+
+model Conversation {
+  id               String             @id @default(uuid())
+  supportRequestId String             @unique
+  supportRequest   SupportRequest     @relation(fields: [supportRequestId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User               @relation("ConversationUser", fields: [userId], references: [id], onDelete: Cascade)
+  volunteerId      String?
+  volunteer        User?              @relation("ConversationVolunteer", fields: [volunteerId], references: [id], onDelete: SetNull)
+  status           ConversationStatus @default(ACTIVE)
+  startedAt        DateTime?
+  closedAt         DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  messages         Message[]
+  reports          Report[]
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  type           MessageType @default(TEXT)
+  createdAt      DateTime    @default(now())
+  deletedAt      DateTime?
+}
+
+model Report {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reportedById   String
+  reportedBy     User         @relation("ReportedBy", fields: [reportedById], references: [id], onDelete: Cascade)
+  reason         ReportReason
+  description    String?
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model SafetyEvent {
+  id               String          @id @default(uuid())
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  supportRequestId String?
+  supportRequest   SupportRequest? @relation(fields: [supportRequestId], references: [id], onDelete: SetNull)
+  type             SafetyEventType
+  description      String?
+  createdAt        DateTime        @default(now())
+}
+
+model ConsentLog {
+  id         String      @id @default(uuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       ConsentType
+  acceptedAt DateTime    @default(now())
+  version    String
+}
+
+model TrainingModule {
+  id        String             @id @default(uuid())
+  title     String
+  content   String
+  order     Int
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  progress  TrainingProgress[]
+}
+
+model TrainingProgress {
+  id                 String           @id @default(uuid())
+  volunteerProfileId String
+  volunteerProfile   VolunteerProfile @relation(fields: [volunteerProfileId], references: [id], onDelete: Cascade)
+  moduleId           String
+  module             TrainingModule   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  completedAt        DateTime         @default(now())
+
+  @@unique([volunteerProfileId, moduleId])
+}
