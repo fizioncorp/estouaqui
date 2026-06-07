@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Estou Aqui
 
 Plataforma gratuita de apoio emocional humano para conectar pessoas que precisam conversar com voluntários aprovados, treinados e supervisionados.
@@ -255,3 +256,4 @@ Web:
 cd apps/web
 npm run dev
 ```
+
